@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>POS Salteñas Sucre</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#96281b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Salteñas">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header style="display:flex;align-items:center;justify-content:space-between;">
+        <button class="menu-btn" id="menuBtn" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+        </button>
+        <div style="text-align:center;flex:1;">
+            <h1>🫓 Salteñas <span>Sucre</span></h1>
+            <div class="header-sub" id="headerSub">Punto de Venta</div>
+        </div>
+        <button id="hornoBtn" class="btn-horno" onclick="abrirHornoModal()">
+            🔥
+        </button>
+    </header>
+
+    <!-- Overlay cierre menú -->
+    <div class="menu-overlay" id="menuOverlay" onclick="cerrarMenu()"></div>
+
+    <!-- Dropdown FUERA del header para evitar overflow:hidden -->
+    <div class="menu-dropdown" id="menuDropdown">
+        <div class="menu-item activo" id="menuItemPOS" onclick="cambiarVista('pos');cerrarMenu()">
+            <span class="menu-item-icon">🧾</span> POS
+        </div>
+        <div class="menu-item" id="menuItemVentas" onclick="cambiarVista('ventas');cerrarMenu()">
+            <span class="menu-item-icon">📊</span> Ventas del día
+        </div>
+    </div>
+
+    <!-- CARRITO STICKY -->
+    <div class="cart" id="cartWidget">
+        <div class="cart-header" onclick="toggleCart()">
+            <h2>🛒 Pedido actual <span class="cart-badge" id="cartCount">0</span></h2>
+            <span class="cart-toggle-icon">▲</span>
+        </div>
+        <div class="cart-body">
+            <div class="cart-items-wrap" id="cartItems">
+                <div style="text-align:center;padding:14px;color:var(--texto-suave);font-size:13px;opacity:0.6">Sin
+                    productos aún</div>
+            </div>
+            <div class="cart-footer">
+                <div id="total">Total: <span>Bs.0</span></div>
+                <div class="cart-buttons">
+                    <button id="limpiarBtn" onclick="limpiarBorrador()">🗑</button>
+                    <button id="accionBtn" class="modo-iniciar" onclick="accionPrincipal()">📋 INICIAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BARRA MODO EDICION -->
+    <div class="edit-bar" id="editBar">
+        <div class="edit-bar-info">
+            <div class="edit-bar-dot" id="editBarDot"></div>
+            <div>
+                <div class="edit-bar-txt" id="editBarTxt">Editando Pedido</div>
+                <div class="edit-bar-sub">Toca + / − para editar</div>
+            </div>
+        </div>
+        <button id="editListoBtn" onclick="terminarEdicion()">✓ Listo</button>
+    </div>
+
+    <div class="section-label">Productos</div>
+    <div class="grid" id="productGrid"></div>
+
+    <!-- BARRA INFERIOR -->
+    <div class="bottom-bar">
+        <span class="bar-label">En espera</span>
+        <div class="chips-row" id="chipsRow"></div>
+    </div>
+
+    <!-- OVERLAY -->
+    <div class="sheet-overlay" id="overlay" onclick="cerrarSheet()"></div>
+
+    <!-- BOTTOM SHEET -->
+    <div class="bottom-sheet" id="bottomSheet">
+        <div class="sheet-handle-wrap">
+            <div class="sheet-handle"></div>
+        </div>
+        <div class="sheet-header">
+            <div class="sheet-titulo">
+                <div class="sheet-dot" id="sheetDot"></div>
+                <span id="sheetTitulo">Pedido</span>
+            </div>
+            <button class="sheet-cerrar" onclick="cerrarSheet()">✕</button>
+        </div>
+        <div class="sheet-items" id="sheetItems"></div>
+        <div class="sheet-footer">
+            <div class="sheet-total-row">
+                <span class="sheet-total-label">Total</span>
+                <div class="sheet-total-val">Bs.<span id="sheetTotal">0</span></div>
+            </div>
+            <div class="sheet-btns">
+                <button id="sheetEditarBtn" onclick="activarEdicion()"
+                    style="background:white;color:var(--azul);border:2px solid var(--azul);padding:12px 16px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Outfit',sans-serif;flex-shrink:0;transition:all 0.2s;">✏️
+                    Editar</button>
+                <button id="sheetLimpiarBtn" onclick="limpiarPedidoSheet()"
+                    style="background:white;color:var(--rojo);border:2px solid var(--rojo);padding:12px 14px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Outfit',sans-serif;flex-shrink:0;transition:all 0.2s;">🗑</button>
+                <button id="sheetVenderBtn" onclick="finalizarVenta()">✓ FINALIZAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VISTA VENTAS DEL DÍA -->
+    <div id="vistaVentas" class="vista oculta">
+        <div class="ventas-header">
+            <span class="ventas-titulo">Ventas del día</span>
+            <button id="recargarBtn" onclick="cargarVentasDia()">
+                <span class="reload-icon">↻</span> Actualizar
+            </button>
+        </div>
+
+        <!-- Resumen -->
+        <div class="resumen-card" id="resumenVentas">
+            <div class="resumen-stat">
+                <div class="rs-val" id="rsPedidos">—</div>
+                <div class="rs-lbl">Pedidos</div>
+            </div>
+            <div class="resumen-stat">
+                <div class="rs-val" id="rsTotal">—</div>
+                <div class="rs-lbl">Vendido</div>
+            </div>
+            <div class="resumen-stat">
+                <div class="rs-val verde" id="rsGanancia">—</div>
+                <div class="rs-lbl">Ganancia</div>
+            </div>
+        </div>
+
+        <!-- Lista de pedidos -->
+        <div id="listaPedidos"></div>
+
+        <!-- Resumen Horneadas (Nuevo) -->
+        <div id="resumenHorneadas" style="margin-top:20px; display:none;">
+            <div class="section-label" style="margin-top:0; margin-bottom:12px; padding:0 4px;">🔥 Horneadas del Día</div>
+            <div id="horneadasHoyGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <!-- INDICADOR CARGA SEGUNDO PLANO -->
+    <div id="syncIndicator" class="sync-indicator">
+        <div class="spinner"></div> Registrando...
+    </div>
+
+    <!-- MODAL TIPO DE PAGO -->
+    <div class="pago-overlay" id="pagoOverlay">
+        <div class="pago-box">
+            <button class="pago-cerrar" onclick="cerrarPago()">✕</button>
+            <div class="pago-titulo">Tipo de pago</div>
+            <div class="pago-sub" id="pagoSubtitulo">Pedido</div>
+            <div class="pago-btns">
+                <button class="pago-btn-qr" onclick="confirmarPago('QR')">
+                    <span class="pago-btn-icon">📲</span>
+                    QR
+                </button>
+                <button class="pago-btn-efectivo" onclick="confirmarPago('Efectivo')">
+                    <span class="pago-btn-icon">💵</span>
+                    Efectivo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ERROR STOCK -->
+    <div class="confirm-overlay" id="errorOverlay" style="z-index:900;">
+        <div class="confirm-box" style="border-color: var(--rojo); box-shadow: 0 12px 48px rgba(192, 57, 43, 0.45);">
+            <div class="confirm-icon" style="font-size:48px;">⚠️</div>
+            <div class="confirm-title" id="errorTitle">Pedido Rechazado</div>
+            <div class="confirm-msg" id="errorMsg" style="color:var(--rojo);font-weight:900;margin-bottom:12px;"></div>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:20px;text-align:left;font-size:13px;max-height:160px;overflow-y:auto;"
+                id="errorItems">
+            </div>
+            <div class="confirm-btns">
+                <button class="confirm-btn-ok"
+                    onclick="document.getElementById('errorOverlay').classList.remove('visible')"
+                    style="flex:1;">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL HORNO -->
+    <div class="confirm-overlay" id="hornoOverlay" style="z-index:900;">
+        <div class="confirm-box"
+            style="border-color: var(--naranja); box-shadow: 0 12px 48px rgba(230, 126, 34, 0.25); max-width:340px; padding:20px 16px;">
+            <div class="confirm-icon" style="font-size:40px; margin-bottom:4px;">🔥</div>
+            <div class="confirm-title">Horno</div>
+            <div class="confirm-msg" style="margin-bottom:16px;">Añade cantidad recién horneada</div>
+            <div id="horneadasItemsList" style="max-height:280px;overflow-y:auto;margin-bottom:16px;text-align:left;"></div>
+            <div class="confirm-btns">
+                <button class="confirm-btn-cancel" onclick="cerrarHornoModal()">Cancelar</button>
+                <button class="confirm-btn-ok" style="background:var(--naranja);" onclick="guardarHornoActual()">✓
+                    Añadir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CIERRE DE CAJA -->
+    <div class="confirm-overlay" id="cierreOverlay" style="z-index:950;">
+        <div class="confirm-box"
+            style="border-color: var(--naranja); box-shadow: 0 12px 48px rgba(230, 126, 34, 0.25); max-width:380px; padding:20px 16px;">
+            <div class="confirm-icon" style="font-size:40px; margin-bottom:4px;">🏁</div>
+            <div class="confirm-title">Cierre de Caja</div>
+            <div class="confirm-msg" style="margin-bottom:12px;">Distribuye las salteñas sobrantes</div>
+            <div id="cierreItemsList" style="max-height:340px;overflow-y:auto;margin-bottom:16px;text-align:left;">
+            </div>
+            <div class="confirm-btns">
+                <button class="confirm-btn-cancel" onclick="cerrarCierreModal()">Cancelar</button>
+                <button class="confirm-btn-ok" style="background:var(--rojo);" onclick="ejecutarCierreCaja()">🔒 Cerrar
+                    Caja</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMACIÓN -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-box">
+            <div class="confirm-icon">🗑</div>
+            <div class="confirm-title" id="confirmTitle">Eliminar pedido</div>
+            <div class="confirm-msg" id="confirmMsg">¿Estás seguro? Esta acción no se puede deshacer.</div>
+            <div class="confirm-btns">
+                <button class="confirm-btn-cancel" onclick="cerrarConfirm()">Cancelar</button>
+                <button class="confirm-btn-ok" id="confirmOkBtn" onclick="ejecutarConfirm()">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts (ES6 Modules) -->
+    <script type="module" src="js/main.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(function (reg) { console.log('SW registrado:', reg.scope); })
+                .catch(function (err) { console.warn('SW error:', err); });
+        }
+    </script>
+</body>
+
+</html>
