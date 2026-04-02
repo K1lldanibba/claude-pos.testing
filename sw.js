@@ -1,4 +1,4 @@
-var CACHE = 'pos-salteñas-v3';
+var CACHE = 'pos-salteñas-v4';
 var ARCHIVOS_SHELL = [
   'index.html',
   'manifest.json',
@@ -6,6 +6,7 @@ var ARCHIVOS_SHELL = [
   'js/main.js',
   'js/core/constants.js',
   'js/core/state.js',
+  'js/core/store.js',
   'js/core/storage.js',
   'js/api/api.js',
   'js/utils/utils.js',
@@ -40,16 +41,13 @@ self.addEventListener('activate', function (ev) {
   self.clients.claim();
 });
 
-// Estrategia Network First con fallback a caché
 self.addEventListener('fetch', function (ev) {
-  // No cachear llamadas a la API
   if (ev.request.url.includes('script.google.com')) return;
   if (ev.request.url.includes('supabase')) return;
 
   ev.respondWith(
     fetch(ev.request)
       .then(function (response) {
-        // Si la respuesta es válida, guardarla en caché para uso offline
         if (response && response.status === 200 && response.type === 'basic') {
           var responseClone = response.clone();
           caches.open(CACHE).then(function (cache) {
@@ -59,7 +57,6 @@ self.addEventListener('fetch', function (ev) {
         return response;
       })
       .catch(function () {
-        // Sin red: servir desde caché
         return caches.match(ev.request).then(function (r) {
           return r || caches.match('index.html');
         });

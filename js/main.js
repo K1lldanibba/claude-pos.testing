@@ -4,6 +4,7 @@
 
 // ── Core ──
 import { state } from './core/state.js';
+import { subscribe } from './core/store.js';
 import { cargarEstadoCaja, cargarHornoDia, cargarPedidos, cargarContadorDia, cargarColaVentas } from './core/storage.js';
 
 // ── Utils ──
@@ -12,7 +13,7 @@ import { getFechaHoy } from './utils/utils.js';
 // ── Componentes ──
 import { showToast, actualizarSyncUI } from './components/Notify.js';
 import { toggleMenu, cerrarMenu, cambiarVista, actualizarBotonCabecera } from './components/Navigation.js';
-import { 
+import {
     cargarProductos, aplicarBloqueoCaja, actualizarStockUI, getCantidadReservada,
     iniciarDragTactil, moverDragTactil, terminarDragTactil
 } from './components/ProductGrid.js';
@@ -29,7 +30,40 @@ import {
 } from './components/Modals.js';
 
 // ═══════════════════════════════════════════════
+// Suscripciones Reactivas
+// Cada key de state tiene mapeados sus renders.
+// Cuando un componente llama notify('pedidos'),
+// TODAS estas funciones se disparan automáticamente.
+// ═══════════════════════════════════════════════
+
+function cablearSuscripciones() {
+    // Carrito — afecta: lista de items, total, badge, stock disponible
+    subscribe('carrito', actualizarCarrito);
+    subscribe('carrito', actualizarStockUI);
+
+    // Pedidos en espera — afecta: chips de la barra, stock reservado, botón acción
+    subscribe('pedidos', renderChips);
+    subscribe('pedidos', actualizarStockUI);
+    subscribe('pedidos', actualizarCarrito);
+
+    // Horneadas — afecta: badges de stock en cards de salteñas
+    subscribe('horneadas', actualizarStockUI);
+
+    // Cola de ventas offline — afecta: indicador de sync
+    subscribe('colaVentas', actualizarSyncUI);
+
+    // Estado de caja — afecta: botón de cabecera, bloqueo de botones
+    subscribe('estadoCaja', aplicarBloqueoCaja);
+    subscribe('estadoCaja', actualizarBotonCabecera);
+
+    // Pedido en edición — afecta: chips (cuál está activo), botón acción
+    subscribe('editandoId', renderChips);
+    subscribe('editandoId', actualizarCarrito);
+}
+
+// ═══════════════════════════════════════════════
 // Mapeo Global — Compatibilidad con onclick HTML
+// TODO: eliminar en Fase 1 (Event Delegation)
 // ═══════════════════════════════════════════════
 
 window.agregar = agregar;
@@ -77,6 +111,12 @@ window.toggleCart = () => {
 // ═══════════════════════════════════════════════
 
 function init() {
+    // 1. Cablear suscripciones ANTES de cargar datos
+    //    para que cualquier cambio de estado durante
+    //    la carga ya dispare los renders correctos
+    cablearSuscripciones();
+
+    // 2. Cargar estado persistido
     state.productos = [];
     cargarEstadoCaja();
     cargarHornoDia();
@@ -84,7 +124,7 @@ function init() {
     state.contadorDia = cargarContadorDia();
     cargarColaVentas();
 
-    // Vinculación del botón de cabecera dinámico
+    // 3. Vincular botón de cabecera dinámico
     const btnCab = document.getElementById('hornoBtn');
     if (btnCab) {
         btnCab.onclick = () => {
@@ -98,6 +138,7 @@ function init() {
         };
     }
 
+    // 4. Render inicial y cola offline
     setTimeout(() => {
         actualizarBotonCabecera();
         aplicarBloqueoCaja();
@@ -105,15 +146,17 @@ function init() {
         if (state.colaVentas.length > 0) procesarColaVentas();
     }, 500);
 
+    // 5. Cargar productos desde API
     cargarProductos();
-    
-    // Configurar monitor de cambio de día a media noche
+
+    // 6. Monitor de cambio de día
     configurarMonitoreoDia();
 }
 
 // ═══════════════════════════════════════════════
 // Monitor de Media Noche
 // ═══════════════════════════════════════════════
+
 const appFechaInit = getFechaHoy();
 
 function verificarCambioDeDia() {
@@ -124,11 +167,9 @@ function verificarCambioDeDia() {
 }
 
 function configurarMonitoreoDia() {
-    // Revisar cuando la PWA vuelve a primer plano
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) verificarCambioDeDia();
     });
-    // Revisar también cada 10 minutos por si se queda la pantalla encendida
     setInterval(verificarCambioDeDia, 600000);
 }
 
