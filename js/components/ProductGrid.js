@@ -2,17 +2,17 @@ import { state } from '../core/state.js';
 import { getEmoji, esJugoLeche, esStockBajo } from '../utils/utils.js';
 import { cargarProductosAPI } from '../api/api.js';
 import { showToast } from './Notify.js';
-// Circular import con Cart - seguro para acceso a nivel de función
 import { actualizarCarrito, renderChips } from './Cart.js';
 import { guardarOrdenProductos, cargarOrdenProductos } from '../core/storage.js';
 
-let dragSrc = null;
-let dragGhost = null;
-let dragOver = null;
+// ── Estado interno del D&D ──
+let dragSrc      = null;
+let dragGhost    = null;
+let dragOver     = null;
 let longPressTimer = null;
-let dragActivo = false;
-let touchStartX = 0;
-let touchStartY = 0;
+let dragActivo   = false;
+let touchStartX  = 0;
+let touchStartY  = 0;
 
 export function getCantidadReservada(index, nombre) {
     let qty = 0;
@@ -32,7 +32,7 @@ export function getCantidadReservada(index, nombre) {
 
 export function actualizarStockUI() {
     if (!state.productos.length) return;
-    
+
     let totalJugosTomados = 0;
     state.productos.forEach((p, idx) => {
         if (esJugoLeche(p.nombre)) {
@@ -97,7 +97,7 @@ export function actualizarStockUI() {
             if (btnAdd) btnAdd.disabled = false;
             if (esSaltena) {
                 card.insertAdjacentHTML('afterbegin', `<div class="badge-stock bajo">Stock ${stockRestante}</div>`);
-                card.insertAdjacentHTML('afterbegin', `<div class="badge-stock" style="left:auto;right:6px;background:var(--rojo);color:white;box-shadow: 0 2px 8px rgba(192,57,43,0.4);">Horneadas ${horneadasDisponibles}</div>`);
+                card.insertAdjacentHTML('afterbegin', `<div class="badge-stock" style="left:auto;right:6px;background:var(--rojo);color:white;box-shadow:0 2px 8px rgba(192,57,43,0.4);">Horneadas ${horneadasDisponibles}</div>`);
             } else {
                 card.insertAdjacentHTML('afterbegin', `<div class="badge-stock bajo">Quedan ${stockRestante}</div>`);
             }
@@ -105,7 +105,7 @@ export function actualizarStockUI() {
             if (btnAdd) btnAdd.disabled = false;
             if (esSaltena) {
                 card.insertAdjacentHTML('afterbegin', `<div class="badge-stock bajo" style="background:var(--surface2);color:var(--texto-suave);box-shadow:none;">Stock ${stockRestante}</div>`);
-                card.insertAdjacentHTML('afterbegin', `<div class="badge-stock" style="left:auto;right:6px;background:var(--rojo);color:white;box-shadow: 0 2px 8px rgba(192,57,43,0.4);">Horneadas ${horneadasDisponibles}</div>`);
+                card.insertAdjacentHTML('afterbegin', `<div class="badge-stock" style="left:auto;right:6px;background:var(--rojo);color:white;box-shadow:0 2px 8px rgba(192,57,43,0.4);">Horneadas ${horneadasDisponibles}</div>`);
             }
         }
 
@@ -121,7 +121,7 @@ export function actualizarStockUI() {
 export function sincronizarCards(items) {
     state.productos.forEach((p, index) => {
         const badge = document.getElementById(`cant-${index}`);
-        const card = document.getElementById(`card-${index}`);
+        const card  = document.getElementById(`card-${index}`);
         if (!badge || !card) return;
         const qty = items[index] || 0;
         badge.textContent = qty > 0 ? qty : '·';
@@ -136,7 +136,9 @@ export function renderSkeletons() {
     if (!grid) return;
     grid.innerHTML = '';
     for (let i = 0; i < 8; i++) {
-        const s = document.createElement('div'); s.className = 'skeleton'; grid.appendChild(s);
+        const s = document.createElement('div');
+        s.className = 'skeleton';
+        grid.appendChild(s);
     }
 }
 
@@ -144,30 +146,34 @@ export function renderProductos() {
     const grid = document.getElementById('productGrid');
     if (!grid) return;
     grid.innerHTML = '';
+
     state.productos.forEach((p, index) => {
         const card = document.createElement('div');
-        card.className = 'card'; card.id = `card-${index}`;
+        card.className = 'card';
+        card.id = `card-${index}`;
+
+        // data-index en la card para que events.js pueda
+        // leerlo en los touch events del D&D
+        card.dataset.index = index;
+
         const qty = state.carrito[index] || 0;
         if (qty > 0) card.classList.add('in-cart');
-        
-        // Asignamos eventos táctiles al card
-        card.setAttribute('ontouchstart', `window.iniciarDragTactil(event, ${index})`);
-        card.setAttribute('ontouchmove', `window.moverDragTactil(event)`);
-        card.setAttribute('ontouchend', `window.terminarDragTactil(event)`);
-        
+
+        // Botones con data-action — el listener está en events.js
         card.innerHTML = `
             <div class="drag-handle">⠿</div>
             <span class="card-emoji">${getEmoji(p.nombre)}</span>
             <h3>${p.nombre}</h3>
             <div class="precio">Bs.${p.precio}</div>
             <div class="controls">
-                <button class="btn-sub" onclick="window.quitar(${index})">−</button>
+                <button class="btn-sub" data-action="quitar" data-index="${index}">−</button>
                 <span class="cant-badge ${qty > 0 ? 'active' : ''}" id="cant-${index}">${qty > 0 ? qty : '·'}</span>
-                <button class="btn-add" onclick="window.agregar(${index})">+</button>
+                <button class="btn-add" data-action="agregar" data-index="${index}">+</button>
             </div>
         `;
         grid.appendChild(card);
     });
+
     actualizarStockUI();
     renderChips();
     actualizarCarrito();
@@ -177,19 +183,16 @@ export async function cargarProductos() {
     renderSkeletons();
     try {
         state.productos = await cargarProductosAPI();
-        
+
         const orden = cargarOrdenProductos();
         if (orden && orden.length > 0) {
             state.productos.sort((a, b) => {
                 const idxA = orden.indexOf(a.nombre);
                 const idxB = orden.indexOf(b.nombre);
-                // Si no existe en el orden guardado, lo tiramos al final
-                const valA = idxA !== -1 ? idxA : 9999;
-                const valB = idxB !== -1 ? idxB : 9999;
-                return valA - valB;
+                return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
             });
         }
-        
+
         renderProductos();
     } catch (e) {
         showToast('❌ Error al cargar productos');
@@ -217,6 +220,13 @@ export function aplicarBloqueoCaja() {
     actualizarCarrito();
 }
 
+// ────────────────────────────────────────────────
+// D&D Táctil
+// Los touch events llegan desde events.js que los
+// delega desde el contenedor #productGrid.
+// Las funciones exportadas mantienen la misma firma.
+// ────────────────────────────────────────────────
+
 export function iniciarDragTactil(e, index) {
     if (e.target.closest('button')) return;
 
@@ -228,7 +238,7 @@ export function iniciarDragTactil(e, index) {
         dragSrc = index;
 
         const card = document.getElementById(`card-${index}`);
-        if(card) card.classList.add('drag-origen');
+        if (card) card.classList.add('drag-origen');
 
         dragGhost = document.createElement('div');
         dragGhost.className = 'drag-ghost';
@@ -239,23 +249,23 @@ export function iniciarDragTactil(e, index) {
             <div class="precio">Bs.${p.precio}</div>
         `;
         document.body.appendChild(dragGhost);
-        moverGhost(e.touches[0].clientX, e.touches[0].clientY);
+        _moverGhost(e.touches[0].clientX, e.touches[0].clientY);
 
         if (navigator.vibrate) navigator.vibrate(40);
         showToast('↕ Arrastra para reordenar');
     }, 600);
 }
 
-export function moverGhost(x, y) {
+function _moverGhost(x, y) {
     if (!dragGhost) return;
     dragGhost.style.left = (x - 70) + 'px';
-    dragGhost.style.top = (y - 60) + 'px';
+    dragGhost.style.top  = (y - 60) + 'px';
 }
 
 export function moverDragTactil(e) {
     const dx = Math.abs(e.touches[0].clientX - touchStartX);
     const dy = Math.abs(e.touches[0].clientY - touchStartY);
-    
+
     if (!dragActivo && (dx > 8 || dy > 8)) {
         clearTimeout(longPressTimer);
         return;
@@ -265,14 +275,14 @@ export function moverDragTactil(e) {
     e.preventDefault();
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
-    moverGhost(x, y);
+    _moverGhost(x, y);
 
     dragGhost.style.display = 'none';
     const elDebajo = document.elementFromPoint(x, y);
     dragGhost.style.display = '';
 
     const cardDebajo = elDebajo?.closest('.card');
-    const nuevoOver = cardDebajo ? parseInt(cardDebajo.id.replace('card-', '')) : null;
+    const nuevoOver  = cardDebajo ? parseInt(cardDebajo.dataset.index) : null;
 
     if (nuevoOver !== dragOver) {
         if (dragOver !== null) document.getElementById(`card-${dragOver}`)?.classList.remove('drag-sobre');
@@ -289,16 +299,13 @@ export function terminarDragTactil(e) {
 
     if (dragGhost) { dragGhost.remove(); dragGhost = null; }
 
-    const srcEl = document.getElementById(`card-${dragSrc}`);
-    if(srcEl) srcEl.classList.remove('drag-origen');
-    
+    document.getElementById(`card-${dragSrc}`)?.classList.remove('drag-origen');
     if (dragOver !== null) {
-        const overEl = document.getElementById(`card-${dragOver}`);
-        if(overEl) overEl.classList.remove('drag-sobre');
+        document.getElementById(`card-${dragOver}`)?.classList.remove('drag-sobre');
     }
 
     if (dragOver !== null && dragOver !== dragSrc) {
-        // Swap arrays
+        // Swap en el array de productos
         const temp = state.productos[dragSrc];
         state.productos[dragSrc] = state.productos[dragOver];
         state.productos[dragOver] = temp;
@@ -319,6 +326,6 @@ export function terminarDragTactil(e) {
     }
 
     dragActivo = false;
-    dragSrc = null;
-    dragOver = null;
+    dragSrc    = null;
+    dragOver   = null;
 }

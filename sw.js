@@ -1,4 +1,4 @@
-var CACHE = 'pos-salteñas-v4';
+var CACHE = 'pos-salteñas-v5';
 var ARCHIVOS_SHELL = [
   'index.html',
   'manifest.json',
@@ -7,6 +7,7 @@ var ARCHIVOS_SHELL = [
   'js/core/constants.js',
   'js/core/state.js',
   'js/core/store.js',
+  'js/core/events.js',
   'js/core/storage.js',
   'js/api/api.js',
   'js/utils/utils.js',

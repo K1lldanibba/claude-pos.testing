@@ -5,6 +5,7 @@
 // ── Core ──
 import { state } from './core/state.js';
 import { subscribe } from './core/store.js';
+import { initEvents } from './core/events.js';
 import { cargarEstadoCaja, cargarHornoDia, cargarPedidos, cargarContadorDia, cargarColaVentas } from './core/storage.js';
 
 // ── Utils ──
@@ -31,112 +32,57 @@ import {
 
 // ═══════════════════════════════════════════════
 // Suscripciones Reactivas
-// Cada key de state tiene mapeados sus renders.
-// Cuando un componente llama notify('pedidos'),
-// TODAS estas funciones se disparan automáticamente.
 // ═══════════════════════════════════════════════
 
 function cablearSuscripciones() {
-    // Carrito — afecta: lista de items, total, badge, stock disponible
-    subscribe('carrito', actualizarCarrito);
-    subscribe('carrito', actualizarStockUI);
+    subscribe('carrito',    actualizarCarrito);
+    subscribe('carrito',    actualizarStockUI);
 
-    // Pedidos en espera — afecta: chips de la barra, stock reservado, botón acción
-    subscribe('pedidos', renderChips);
-    subscribe('pedidos', actualizarStockUI);
-    subscribe('pedidos', actualizarCarrito);
+    subscribe('pedidos',    renderChips);
+    subscribe('pedidos',    actualizarStockUI);
+    subscribe('pedidos',    actualizarCarrito);
 
-    // Horneadas — afecta: badges de stock en cards de salteñas
-    subscribe('horneadas', actualizarStockUI);
+    subscribe('horneadas',  actualizarStockUI);
 
-    // Cola de ventas offline — afecta: indicador de sync
     subscribe('colaVentas', actualizarSyncUI);
 
-    // Estado de caja — afecta: botón de cabecera, bloqueo de botones
     subscribe('estadoCaja', aplicarBloqueoCaja);
     subscribe('estadoCaja', actualizarBotonCabecera);
 
-    // Pedido en edición — afecta: chips (cuál está activo), botón acción
     subscribe('editandoId', renderChips);
     subscribe('editandoId', actualizarCarrito);
 }
 
 // ═══════════════════════════════════════════════
-// Mapeo Global — Compatibilidad con onclick HTML
-// TODO: eliminar en Fase 1 (Event Delegation)
+// Mapeo Global — compatibilidad con HTML dinámico
+// generado por Modals.js (horno, cierre de caja)
+// TODO: eliminar en Parte B cuando Modals.js
+//       migre sus templates a data-action
 // ═══════════════════════════════════════════════
 
-window.agregar = agregar;
-window.quitar = quitar;
-window.limpiarBorrador = limpiarBorrador;
-window.accionPrincipal = accionPrincipal;
-window.finalizarVenta = finalizarVenta;
-window.confirmarPago = confirmarPago;
-window.abrirSheet = abrirSheet;
-window.cerrarSheet = cerrarSheet;
-window.activarEdicion = activarEdicion;
-window.terminarEdicion = terminarEdicion;
-window.limpiarPedidoSheet = limpiarPedidoSheet;
-window.confirmarAperturaCaja = confirmarAperturaCaja;
-window.cerrarConfirm = cerrarConfirm;
-window.ejecutarConfirm = ejecutarConfirm;
-window.abrirHornoModal = abrirHornoModal;
-window.cambiarTempHorno = cambiarTempHorno;
-window.cerrarHornoModal = cerrarHornoModal;
-window.guardarHornoActual = guardarHornoActual;
-window.toggleMenu = toggleMenu;
-window.cerrarMenu = cerrarMenu;
-window.cambiarVista = cambiarVista;
-window.cargarVentasDia = cargarVentasDia;
-window.cerrarPago = cerrarPago;
+window.abrirSheet           = abrirSheet;
 window.mostrarErrorServidor = mostrarErrorServidor;
-window.cambiarCierre = cambiarCierre;
-window.ejecutarCierreCaja = ejecutarCierreCaja;
-window.cerrarCierreModal = cerrarCierreModal;
-window.abrirCierreCaja = abrirCierreCaja;
 window.getCantidadReservada = getCantidadReservada;
-
-window.iniciarDragTactil = iniciarDragTactil;
-window.moverDragTactil = moverDragTactil;
-window.terminarDragTactil = terminarDragTactil;
-
-window.toggleCart = () => {
-    state.cartCollapsed = !state.cartCollapsed;
-    actualizarCarrito();
-    document.getElementById('cartWidget').classList.toggle('collapsed', state.cartCollapsed);
-};
 
 // ═══════════════════════════════════════════════
 // Inicialización
 // ═══════════════════════════════════════════════
 
 function init() {
-    // 1. Cablear suscripciones ANTES de cargar datos
-    //    para que cualquier cambio de estado durante
-    //    la carga ya dispare los renders correctos
+    // 1. Router de eventos — primero para capturar
+    //    cualquier click que ocurra durante la carga
+    initEvents();
+
+    // 2. Suscripciones reactivas
     cablearSuscripciones();
 
-    // 2. Cargar estado persistido
+    // 3. Estado persistido
     state.productos = [];
     cargarEstadoCaja();
     cargarHornoDia();
     cargarPedidos();
     state.contadorDia = cargarContadorDia();
     cargarColaVentas();
-
-    // 3. Vincular botón de cabecera dinámico
-    const btnCab = document.getElementById('hornoBtn');
-    if (btnCab) {
-        btnCab.onclick = () => {
-            if (state.vistaActual === 'ventas') {
-                abrirCierreCaja();
-            } else if (state.estadoCaja === 'cerrada') {
-                confirmarAperturaCaja();
-            } else {
-                abrirHornoModal();
-            }
-        };
-    }
 
     // 4. Render inicial y cola offline
     setTimeout(() => {
@@ -146,7 +92,7 @@ function init() {
         if (state.colaVentas.length > 0) procesarColaVentas();
     }, 500);
 
-    // 5. Cargar productos desde API
+    // 5. Productos desde API
     cargarProductos();
 
     // 6. Monitor de cambio de día
